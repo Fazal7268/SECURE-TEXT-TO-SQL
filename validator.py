@@ -28,7 +28,9 @@ SQL_STOPWORDS = {
 
 def schema_match_check(sql: str, known_identifiers: set) -> tuple[bool, list]:
     """Checks if all tokens in the query exist in the database schema."""
-    tokens = {t.lower() for t in IDENTIFIER_RE.findall(sql)}
+    # Strip string literals first so text like 'AC/DC' or 'USA' isn't split into tokens
+    sql_clean = re.sub(r"'[^']*'", "", sql)
+    tokens = {t.lower() for t in IDENTIFIER_RE.findall(sql_clean)}
     tokens -= SQL_STOPWORDS
     tokens = {t for t in tokens if not t.isdigit()}
 

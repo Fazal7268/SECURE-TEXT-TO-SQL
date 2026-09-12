@@ -1,13 +1,15 @@
 import os
 import duckdb
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 
 DB_PATH = os.getenv("DB_PATH", "data/chinook.duckdb")
 
 def get_engine():
     """Return a SQLAlchemy engine pointed at the local DuckDB file."""
     os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
-    return create_engine(f"duckdb:///{DB_PATH}")
+    # NullPool prevents DuckDB file locking across Streamlit reruns
+    return create_engine(f"duckdb:///{DB_PATH}", poolclass=NullPool)
 
 def bootstrap_database():
     """Seeds a local Chinook demo database if not already present."""

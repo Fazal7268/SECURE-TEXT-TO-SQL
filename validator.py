@@ -17,6 +17,7 @@ class JudgeResponse(BaseModel):
 
 IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_\.]*")
 
+# Common SQL syntax keywords we should ignore when checking for hallucinated identifiers
 SQL_STOPWORDS = {
     "select", "from", "where", "join", "inner", "left", "right", "outer",
     "on", "group", "by", "order", "limit", "as", "and", "or", "not", "in",
@@ -27,17 +28,52 @@ SQL_STOPWORDS = {
 }
 
 def schema_match_check(sql: str, known_identifiers: set) -> tuple[bool, list]:
-    """Checks if all tokens in the query exist in the database schema."""
+    """
+    Validates that every table and column referenced in the query exists in the schema.
+    Returns (passed, list_of_unknown_tokens).
+    """
     # Strip string literals first so text like 'AC/DC' or 'USA' isn't split into tokens
     sql_clean = re.sub(r"'[^']*'", "", sql)
+
+    # Find table names in schema to match aliases against (e.g. 'tracks AS t')
+    known_tables = {x for x in known_identifiers if "." not in x}
+    aliases = {}
+    for table in known_tables:
+        pattern = rf"\b{table}\b\s+(?:as\s+)?\b([a-z_][a-z0-9_]*)\b"
+        for match in re.findall(pattern, sql_clean, re.IGNORECASE):
+            if match.lower() not in SQL_STOPWORDS:
+                aliases[match.lower()] = table.lower()
+
+    # Capture output column aliases (e.g., 'SUM(...) AS total_revenue') so they aren't flagged
+    as_aliases = {
+        alias.lower()
+        for alias in re.findall(r"\bas\s+\b([a-z_][a-z0-9_]*)\b", sql_clean, re.IGNORECASE)
+    }
+
     tokens = {t.lower() for t in IDENTIFIER_RE.findall(sql_clean)}
     tokens -= SQL_STOPWORDS
+    tokens -= as_aliases
     tokens = {t for t in tokens if not t.isdigit()}
 
-    unknown = [t for t in tokens if t not in known_identifiers]
+    # Resolve alias-prefixed identifiers (e.g. 't.track_id' -> 'tracks.track_id')
+    # TODO: expand alias resolution to handle CTEs and subquery scopes
+    unknown = []
+    for token in tokens:
+        if "." in token:
+            prefix, suffix = token.split(".", 1)
+            resolved = f"{aliases[prefix]}.{suffix}" if prefix in aliases else token
+        else:
+            if token in aliases:
+                continue
+            resolved = token
+
+        if resolved not in known_identifiers:
+            unknown.append(token)
+
     return len(unknown) == 0, unknown
 
 def llm_judge(question: str, sql: str, result_sample: str) -> dict:
+    """Uses Gemini as an independent judge to evaluate whether the query answered the question."""
     prompt = f"""Question: {question}
 
 Generated SQL:
@@ -60,9 +96,11 @@ Rate on a scale of 1-5 how accurately this SQL query answers the question."""
         parsed = json.loads(response.text)
         return {"score": int(parsed["score"]), "reason": parsed["reason"]}
     except Exception:
+        # Fallback if evaluation fails or returns unexpected format
         return {"score": 3, "reason": "Judge response could not be parsed."}
 
 def compute_confidence(schema_passed: bool, judge_score: int) -> str:
+    """Combines deterministic schema check and semantic evaluation into a confidence badge."""
     if not schema_passed:
         return "Low"
     if judge_score >= 4:

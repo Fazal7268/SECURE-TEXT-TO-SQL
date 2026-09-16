@@ -2,6 +2,8 @@
 
 A natural language to SQL query engine built with Streamlit and Google Gemini. Translates English questions into SQL, enforces execution guardrails, and validates against hallucinations using deterministic schema checks and an LLM judge.
 
+![Dashboard Interface](assets/preview.png)
+
 ---
 
 ## Why I Built This
@@ -107,6 +109,17 @@ cp .env.example .env
 # Run the app
 streamlit run app.py
 ```
+
+### Cloud Deployment (Streamlit Community Cloud)
+
+To deploy online for free via Streamlit Community Cloud:
+1. Push this repository to your GitHub account.
+2. Sign in to [share.streamlit.io](https://share.streamlit.io) and create a new app pointing to `app.py`.
+3. Under **Advanced settings > Secrets**, add your API key:
+   ```toml
+   GEMINI_API_KEY = "your_api_key_here"
+   LLM_MODEL = "gemini-3.5-flash-lite"
+   ```
 
 ---
 

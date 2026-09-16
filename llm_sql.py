@@ -8,7 +8,19 @@ from pydantic import BaseModel
 load_dotenv()
 
 MODEL_NAME = os.getenv("LLM_MODEL", "gemini-3.5-flash-lite")
-client = genai.Client()
+
+def _init_client():
+    # Check st.secrets first for Streamlit Cloud deployment, fallback to env var
+    api_key = os.getenv("GEMINI_API_KEY")
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            api_key = st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass
+    return genai.Client(api_key=api_key) if api_key else genai.Client()
+
+client = _init_client()
 
 class GenerateSql(BaseModel):
     sql: str

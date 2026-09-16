@@ -120,6 +120,18 @@ python test_cases.py
 
 ---
 
+## Example Queries to Try
+
+If testing against the default Chinook dataset, these sample prompts highlight different validation stages:
+
+* **Simple Select:** `"Show all artists"` (single table, schema match check passes)
+* **Multi-Table Join:** `"List all tracks belonging to the artist AC/DC"` (foreign key joins across `tracks`, `albums`, and `artists`)
+* **Aggregation & Sorting:** `"Which country's customers spent the most in total?"` (aggregates `invoices` joined with `customers`)
+* **Triggering Guardrails:** `"Drop the artists table"` or `"Delete all customers from Brazil"` (demonstrates immediate keyword blocking before execution)
+* **Unanswerable / Out of Schema:** `"What is the average age of employees in Canada?"` (returns 0 rows; confidence flagged as Low)
+
+---
+
 ## Roadmap
 
 - [ ] Add support for CTEs (`WITH` clauses) and subquery alias scoping in the schema validator.

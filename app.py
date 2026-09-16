@@ -101,8 +101,20 @@ else:
 with st.expander("Active Database Schema"):
     st.code(schema_text, language="text")
 
+if "user_query" not in st.session_state:
+    st.session_state.user_query = ""
+
+col_q1, col_q2, col_q3 = st.columns([1, 1, 1.2])
+if col_q1.button("Show all artists"):
+    st.session_state.user_query = "Show all artists"
+if col_q2.button("AC/DC tracks"):
+    st.session_state.user_query = "List all tracks belonging to the artist AC/DC"
+if col_q3.button("Test DROP guardrail"):
+    st.session_state.user_query = "Drop the artists table"
+
 question = st.text_input(
     "Query",
+    value=st.session_state.user_query,
     placeholder="e.g. Which country's customers spent the most in total?",
 )
 

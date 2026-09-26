@@ -7,13 +7,17 @@ from sqlalchemy import text
 from sqlalchemy.pool import NullPool
 from sqlalchemy import create_engine
 
-from db import get_engine, bootstrap_database, DB_PATH
+from db import bootstrap_database, DB_PATH
 from guardrails import check_sql_is_safe, enforce_row_limit, GuardrailViolation
 from llm_sql import generate_sql
 from schema_utils import get_schema_dict, schema_to_prompt_string, all_known_identifiers
 from validator import schema_match_check, llm_judge, compute_confidence
 
 load_dotenv()
+
+
+class ErrorResponse(BaseModel):
+    detail: str
 
 app = FastAPI(title="Secure Text-to-SQL API")
 
@@ -49,7 +53,15 @@ def get_schema():
     return schema
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post(
+    "/query",
+    response_model=QueryResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Empty question"},
+        403: {"model": ErrorResponse, "description": "Guardrail blocked the query"},
+        500: {"model": ErrorResponse, "description": "Query execution failed"},
+    },
+)
 def run_query(body: QueryRequest):
     question = body.question.strip()
     if not question:

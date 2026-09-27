@@ -1,6 +1,6 @@
 # text2sql-guardrails
 
-A natural language to SQL query engine built with Streamlit and Google Gemini. Translates English questions into SQL, enforces execution guardrails, and validates against hallucinations using deterministic schema checks and an LLM judge.
+A natural language to SQL query engine with a **FastAPI backend** and a **Streamlit frontend**. Translates English questions into SQL, enforces execution guardrails, and validates against hallucinations using deterministic schema checks and an LLM judge.
 
 ![Dashboard Interface](assets/preview.png)
 
@@ -74,6 +74,7 @@ Early iterations using free-form prompting frequently returned markdown blocks (
   * **Demo:** Bundles the classic Chinook relational database (DuckDB) for instant testing.
   * **File Upload:** Upload any `.db`, `.sqlite`, or `.duckdb` file via the sidebar to query your own data.
   * **Connection URL:** Connect directly to external servers (MySQL, PostgreSQL) via standard SQLAlchemy URLs.
+* **REST API:** FastAPI layer exposes the full pipeline as a backend service (`POST /query`, `GET /schema`). Auto-generated Swagger docs at `/docs`.
 * **Execution Guardrails:** Blocks non-SELECT operations (`DROP`, `ALTER`, `TRUNCATE`, `DELETE`, etc.) and automatically appends safety `LIMIT` clauses.
 * **Two-Layer Confidence Scoring:** Combines AST identifier verification with an LLM judge evaluating whether the SQL accurately satisfies the user prompt.
 * **Exportable Results:** One-click CSV download for generated query outputs.
@@ -120,6 +121,49 @@ To deploy online for free via Streamlit Community Cloud:
    GEMINI_API_KEY = "your_api_key_here"
    LLM_MODEL = "gemini-3.5-flash-lite"
    ```
+
+---
+
+## REST API
+
+The pipeline is also exposed as a standalone REST API via FastAPI. You can use it independently of the Streamlit UI.
+
+**Start the API server:**
+```bash
+uvicorn api:app --reload --port 8080
+```
+
+**Swagger UI** is available at `http://localhost:8080/docs` automatically.
+
+**Example — ask a question:**
+```bash
+curl -X POST http://localhost:8080/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Which artist has the most tracks?"}'
+```
+
+**Response:**
+```json
+{
+  "question": "Which artist has the most tracks?",
+  "sql": "SELECT artists.name, COUNT(*) AS track_count FROM tracks JOIN albums ON tracks.album_id = albums.album_id JOIN artists ON albums.artist_id = artists.artist_id GROUP BY artists.name ORDER BY track_count DESC LIMIT 500;",
+  "confidence": "High",
+  "judge_score": 5,
+  "row_count": 4,
+  "rows": [...]
+}
+```
+
+**Get the current database schema:**
+```bash
+curl http://localhost:8080/schema
+```
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | Health check |
+| `/schema` | GET | Returns full DB schema |
+| `/query` | POST | Runs the full pipeline and returns results |
 
 ---
 

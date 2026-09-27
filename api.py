@@ -1,4 +1,3 @@
-import os
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -19,7 +18,10 @@ load_dotenv()
 class ErrorResponse(BaseModel):
     detail: str
 
-app = FastAPI(title="Secure Text-to-SQL API")
+app = FastAPI(
+    title="Secure Text-to-SQL API",
+    description="Natural language to SQL with guardrails. POST a question, get back validated SQL and results.",
+)
 
 bootstrap_database()
 
@@ -46,10 +48,12 @@ def root():
     return {"message": "Secure Text-to-SQL API is running. See /docs for usage."}
 
 
-@app.get("/schema")
+@app.get("/schema", summary="Returns the current database schema")
 def get_schema():
     engine = create_engine(f"duckdb:///{DB_PATH}", poolclass=NullPool)
     schema = get_schema_dict(engine)
+    if not schema:
+        raise HTTPException(status_code=404, detail="No tables found in the database.")
     return schema
 
 
@@ -75,7 +79,7 @@ def run_query(body: QueryRequest):
     try:
         result = generate_sql(question, schema_text)
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"LLM failed to generate SQL: {e}")
 
     sql = result["sql"]
     explanation = result["explanation"]

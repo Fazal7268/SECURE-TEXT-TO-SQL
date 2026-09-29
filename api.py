@@ -1,11 +1,12 @@
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.pool import NullPool
 from sqlalchemy import create_engine
 
+from audit import init_db, log_query, get_history
 from db import bootstrap_database, DB_PATH
 from guardrails import check_sql_is_safe, enforce_row_limit, GuardrailViolation
 from llm_sql import generate_sql
@@ -24,6 +25,7 @@ app = FastAPI(
 )
 
 bootstrap_database()
+init_db()
 
 
 class QueryRequest(BaseModel):
@@ -57,6 +59,11 @@ def get_schema():
     return schema
 
 
+@app.get("/history", summary="Returns recent query audit log")
+def history(limit: int = Query(50, ge=1, le=500), blocked_only: bool = False):
+    return get_history(limit=limit, blocked_only=blocked_only)
+
+
 @app.post(
     "/query",
     response_model=QueryResponse,
@@ -87,6 +94,7 @@ def run_query(body: QueryRequest):
     try:
         check_sql_is_safe(sql)
     except GuardrailViolation as e:
+        log_query(question, sql=sql, blocked=True, blocked_reason=str(e))
         raise HTTPException(status_code=403, detail=str(e))
 
     sql = enforce_row_limit(sql, max_rows=500)
@@ -101,6 +109,14 @@ def run_query(body: QueryRequest):
     result_sample = df.head(5).to_string(index=False) if not df.empty else "(no rows)"
     judge = llm_judge(question, sql, result_sample)
     confidence = compute_confidence(schema_passed, judge["score"])
+
+    log_query(
+        question,
+        sql=sql,
+        confidence=confidence,
+        judge_score=judge["score"],
+        row_count=len(df),
+    )
 
     return QueryResponse(
         question=question,

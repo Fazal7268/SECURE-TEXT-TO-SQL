@@ -60,8 +60,16 @@ def get_schema():
 
 
 @app.get("/history", summary="Returns recent query audit log")
-def history(limit: int = Query(50, ge=1, le=500), blocked_only: bool = False):
-    return get_history(limit=limit, blocked_only=blocked_only)
+def history(
+    limit: int = Query(50, ge=1, le=500),
+    status: str = Query("all", pattern="^(all|passed|blocked)$"),
+):
+    blocked_only = status == "blocked"
+    passed_only = status == "passed"
+    rows = get_history(limit=limit, blocked_only=blocked_only)
+    if passed_only:
+        rows = [r for r in rows if not r["blocked"]]
+    return rows
 
 
 @app.post(

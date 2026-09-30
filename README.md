@@ -75,6 +75,7 @@ Early iterations using free-form prompting frequently returned markdown blocks (
   * **File Upload:** Upload any `.db`, `.sqlite`, or `.duckdb` file via the sidebar to query your own data.
   * **Connection URL:** Connect directly to external servers (MySQL, PostgreSQL) via standard SQLAlchemy URLs.
 * **REST API:** FastAPI layer exposes the full pipeline as a backend service (`POST /query`, `GET /schema`). Auto-generated Swagger docs at `/docs`.
+* **Audit Log:** Every query — passed or blocked — is logged to a local SQLite database with timestamp, generated SQL, confidence score, and block reason. Queryable via `GET /history`.
 * **Execution Guardrails:** Blocks non-SELECT operations (`DROP`, `ALTER`, `TRUNCATE`, `DELETE`, etc.) and automatically appends safety `LIMIT` clauses.
 * **Two-Layer Confidence Scoring:** Combines AST identifier verification with an LLM judge evaluating whether the SQL accurately satisfies the user prompt.
 * **Exportable Results:** One-click CSV download for generated query outputs.
@@ -159,11 +160,21 @@ curl -X POST http://localhost:8080/query \
 curl http://localhost:8080/schema
 ```
 
+**Get query history (filter by status):**
+```bash
+# all queries
+curl http://localhost:8080/history
+
+# only blocked queries
+curl "http://localhost:8080/history?status=blocked"
+```
+
 | Endpoint | Method | Description |
 |---|---|---|
 | `/` | GET | Health check |
 | `/schema` | GET | Returns full DB schema |
 | `/query` | POST | Runs the full pipeline and returns results |
+| `/history` | GET | Audit log — supports `?status=all\|passed\|blocked` and `?limit=N` |
 
 ---
 

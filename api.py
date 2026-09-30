@@ -2,9 +2,8 @@ import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
-from sqlalchemy import create_engine
 
 from audit import init_db, log_query, get_history
 from db import bootstrap_database, DB_PATH

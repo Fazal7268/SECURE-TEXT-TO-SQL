@@ -25,9 +25,15 @@ def init_db():
     con.close()
 
 
-def log_query(question: str, sql: str = None, confidence: str = None,
-              judge_score: int = None, row_count: int = None,
-              blocked: bool = False, blocked_reason: str = None):
+def log_query(
+    question: str,
+    sql: str = None,
+    confidence: str = None,
+    judge_score: int = None,
+    row_count: int = None,
+    blocked: bool = False,
+    blocked_reason: str = None,
+):
     con = sqlite3.connect(AUDIT_DB)
     con.execute(
         """INSERT INTO query_log

@@ -75,6 +75,7 @@ Early iterations using free-form prompting frequently returned markdown blocks (
   * **File Upload:** Upload any `.db`, `.sqlite`, or `.duckdb` file via the sidebar to query your own data.
   * **Connection URL:** Connect directly to external servers (MySQL, PostgreSQL) via standard SQLAlchemy URLs.
 * **REST API:** FastAPI layer exposes the full pipeline as a backend service (`POST /query`, `GET /schema`). Auto-generated Swagger docs at `/docs`.
+* **Rate Limiting:** `/query` is limited to 5 requests per minute per IP using `slowapi`. Exceeding the limit returns a `429 Too Many Requests` response.
 * **Audit Log:** Every query — passed or blocked — is logged to a local SQLite database with timestamp, generated SQL, confidence score, and block reason. Queryable via `GET /history`.
 * **Execution Guardrails:** Blocks non-SELECT operations (`DROP`, `ALTER`, `TRUNCATE`, `DELETE`, etc.) and automatically appends safety `LIMIT` clauses.
 * **Two-Layer Confidence Scoring:** Combines AST identifier verification with an LLM judge evaluating whether the SQL accurately satisfies the user prompt.

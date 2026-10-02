@@ -1,7 +1,10 @@
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 
@@ -14,6 +17,8 @@ from validator import schema_match_check, llm_judge, compute_confidence
 
 load_dotenv()
 
+limiter = Limiter(key_func=get_remote_address)
+
 
 class ErrorResponse(BaseModel):
     detail: str
@@ -22,6 +27,8 @@ app = FastAPI(
     title="Secure Text-to-SQL API",
     description="Natural language to SQL with guardrails. POST a question, get back validated SQL and results.",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 bootstrap_database()
 init_db()
@@ -77,10 +84,12 @@ def history(
     responses={
         400: {"model": ErrorResponse, "description": "Empty question"},
         403: {"model": ErrorResponse, "description": "Guardrail blocked the query"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Query execution failed"},
     },
 )
-def run_query(body: QueryRequest):
+@limiter.limit("5/minute")
+def run_query(request: Request, body: QueryRequest):
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")

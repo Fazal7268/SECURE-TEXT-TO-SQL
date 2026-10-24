@@ -74,6 +74,7 @@ Early iterations using free-form prompting frequently returned markdown blocks (
   * **Demo:** Bundles the classic Chinook relational database (DuckDB) for instant testing.
   * **File Upload:** Upload any `.db`, `.sqlite`, or `.duckdb` file via the sidebar to query your own data.
   * **Connection URL:** Connect directly to external servers (MySQL, PostgreSQL) via standard SQLAlchemy URLs.
+* **Modernized UI & Caching:** Streamlit UI styled with dark/light theme support (`.streamlit/config.toml`), custom status chips, and session caching (`@st.cache_resource`, `@st.cache_data`) for instant button interactions and zero redundant connection overhead.
 * **REST API:** FastAPI layer exposes the full pipeline as a backend service (`POST /query`, `GET /schema`). Auto-generated Swagger docs at `/docs`.
 * **Rate Limiting:** `/query` is limited to 5 requests per minute per IP using `slowapi`. Exceeding the limit returns a `429 Too Many Requests` response.
 * **Audit Log:** Every query — passed or blocked — is logged to a local SQLite database with timestamp, generated SQL, confidence score, and block reason. Queryable via `GET /history`.
@@ -92,8 +93,8 @@ Early iterations using free-form prompting frequently returned markdown blocks (
 ### Setup
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/secure-text-to-sql-gemini.git
-cd secure-text-to-sql-gemini
+git clone https://github.com/Fazal7268/SECURE-TEXT-TO-SQL.git
+cd SECURE-TEXT-TO-SQL
 
 # Create and activate virtual environment
 python -m venv venv
@@ -181,9 +182,13 @@ curl "http://localhost:8080/history?status=blocked"
 
 ## Running the Test Suite
 
-The repository includes an automated test runner covering simple selects, multi-table joins, aggregations, security violations, and unanswerable questions:
+The repository includes test suites covering safety guardrails, AST parsing, schema validation, LLM generation, execution, and judge confidence:
 
 ```bash
+# Core pipeline integration tests (14 checks: guardrails, AST, DuckDB, confidence)
+python test_pipeline.py
+
+# End-to-end query test suite
 python test_cases.py
 ```
 

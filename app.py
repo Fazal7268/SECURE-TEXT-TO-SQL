@@ -144,7 +144,13 @@ st.markdown("""
         padding-top: 6px;
     }
 
-    #MainMenu, footer, header { visibility: hidden; }
+    #MainMenu, footer { visibility: hidden; }
+    header { background: transparent !important; }
+    [data-testid="stSidebarCollapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+        color: #e63946 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -328,7 +334,12 @@ question = st.text_input(
     label_visibility="collapsed",
 )
 
-run = st.button("Run Query", type="primary")
+col_run, col_clear = st.columns([1.2, 5])
+run = col_run.button("Run Query", type="primary")
+if col_clear.button("Clear"):
+    st.session_state.user_query = ""
+    st.session_state.auto_run = False
+    st.rerun()
 
 # consume auto_run flag
 should_run = run or st.session_state.auto_run

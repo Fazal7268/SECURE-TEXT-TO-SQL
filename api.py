@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from audit import init_db, log_query, get_history
 from db import bootstrap_database, DB_PATH
-from guardrails import check_sql_is_safe, enforce_row_limit, GuardrailViolation
+from guardrails import check_sql_is_safe, enforce_row_limit, sanitize_user_input, GuardrailViolation
 from llm_sql import generate_sql
 from schema_utils import get_schema_dict, schema_to_prompt_string, all_known_identifiers
 from validator import schema_match_check, llm_judge, compute_confidence
@@ -90,9 +90,11 @@ def history(
 )
 @limiter.limit("5/minute")
 def run_query(request: Request, body: QueryRequest):
-    question = body.question.strip()
-    if not question:
-        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    try:
+        question = sanitize_user_input(body.question)
+    except GuardrailViolation as e:
+        log_query(body.question, blocked=True, blocked_reason=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
     engine = create_engine(f"duckdb:///{DB_PATH}", poolclass=NullPool)
     schema = get_schema_dict(engine)

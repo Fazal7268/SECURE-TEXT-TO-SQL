@@ -76,9 +76,13 @@ Early iterations using free-form prompting frequently returned markdown blocks (
   * **Connection URL:** Connect directly to external servers (MySQL, PostgreSQL) via standard SQLAlchemy URLs.
 * **Modernized UI & Caching:** Streamlit UI styled with dark/light theme support (`.streamlit/config.toml`), custom status chips, and session caching (`@st.cache_resource`, `@st.cache_data`) for instant button interactions and zero redundant connection overhead.
 * **REST API:** FastAPI layer exposes the full pipeline as a backend service (`POST /query`, `GET /schema`). Auto-generated Swagger docs at `/docs`.
-* **Rate Limiting:** `/query` is limited to 5 requests per minute per IP using `slowapi`. Exceeding the limit returns a `429 Too Many Requests` response.
+* **Execution Guardrails & Sandboxing:** 
+  * Blocks non-SELECT operations (`DROP`, `ALTER`, `TRUNCATE`, `DELETE`, etc.) and multi-statement stacked injections.
+  * Blocks external file access and extension loads (`read_csv`, `read_parquet`, `INSTALL`, `LOAD`).
+  * Enforces native DuckDB sandboxing (`enable_external_access = false`) and automatic safety `LIMIT` clauses.
+* **Input Sanitization & Injection Defense:** Filters adversarial prompt injections and caps user prompts at 300 characters to prevent prompt stuffing.
+* **Dual-Layer Rate Limiting:** Enforces 5 req/min per IP on the FastAPI backend (via `slowapi`) and cooldown/quota protections on the Streamlit frontend.
 * **Audit Log:** Every query — passed or blocked — is logged to a local SQLite database with timestamp, generated SQL, confidence score, and block reason. Queryable via `GET /history`.
-* **Execution Guardrails:** Blocks non-SELECT operations (`DROP`, `ALTER`, `TRUNCATE`, `DELETE`, etc.) and automatically appends safety `LIMIT` clauses.
 * **Two-Layer Confidence Scoring:** Combines AST identifier verification with an LLM judge evaluating whether the SQL accurately satisfies the user prompt.
 * **Exportable Results:** One-click CSV download for generated query outputs.
 
@@ -185,7 +189,7 @@ curl "http://localhost:8080/history?status=blocked"
 The repository includes test suites covering safety guardrails, AST parsing, schema validation, LLM generation, execution, and judge confidence:
 
 ```bash
-# Core pipeline integration tests (14 checks: guardrails, AST, DuckDB, confidence)
+# Core pipeline & security integration tests (20 checks: guardrails, injections, AST, DuckDB, confidence, audit)
 python test_pipeline.py
 
 # End-to-end query test suite

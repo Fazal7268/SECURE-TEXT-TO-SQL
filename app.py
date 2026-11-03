@@ -1,4 +1,5 @@
 import os
+import time
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
@@ -7,11 +8,14 @@ from sqlalchemy.pool import NullPool
 
 load_dotenv()
 
+from audit import init_db, log_query
 from db import bootstrap_database
 from schema_utils import get_schema_dict, schema_to_prompt_string, all_known_identifiers
-from guardrails import check_sql_is_safe, enforce_row_limit, GuardrailViolation
+from guardrails import check_sql_is_safe, enforce_row_limit, sanitize_user_input, GuardrailViolation
 from llm_sql import generate_sql
 from validator import schema_match_check, llm_judge, compute_confidence
+
+init_db()
 
 MAX_ROWS = int(os.getenv("MAX_ROWS", "200"))
 
@@ -268,11 +272,32 @@ with st.expander("Active schema", expanded=False):
     st.code(schema_text, language="text")
 
 
-# ── Session state ─────────────────────────────────────────────────────────────
+# ── Session state & Security ──────────────────────────────────────────────────
 if "user_query" not in st.session_state:
     st.session_state.user_query = ""
 if "auto_run" not in st.session_state:
     st.session_state.auto_run = False
+if "query_timestamps" not in st.session_state:
+    st.session_state.query_timestamps = []
+
+
+def check_session_rate_limit(max_per_min: int = 5, cooldown_sec: int = 3) -> tuple[bool, str]:
+    now = time.time()
+    st.session_state.query_timestamps = [
+        t for t in st.session_state.query_timestamps if now - t < 60
+    ]
+
+    if st.session_state.query_timestamps:
+        last = st.session_state.query_timestamps[-1]
+        elapsed = now - last
+        if elapsed < cooldown_sec:
+            wait = int(cooldown_sec - elapsed) + 1
+            return False, f"Please wait {wait}s before running another query."
+
+    if len(st.session_state.query_timestamps) >= max_per_min:
+        return False, f"Rate limit reached ({max_per_min} queries/min). Please wait a moment."
+
+    return True, ""
 
 
 # ── Quick queries ─────────────────────────────────────────────────────────────
@@ -314,9 +339,25 @@ if st.session_state.auto_run:
 # ── Pipeline ──────────────────────────────────────────────────────────────────
 if should_run and question:
 
+    # 1. Rate limiting
+    allowed, limit_msg = check_session_rate_limit(max_per_min=5, cooldown_sec=3)
+    if not allowed:
+        st.warning(f"Rate limited: {limit_msg}")
+        st.stop()
+
+    # 2. Input sanitization (length & prompt injection defense)
+    try:
+        clean_question = sanitize_user_input(question)
+    except GuardrailViolation as e:
+        log_query(question, blocked=True, blocked_reason=f"Input guardrail: {e}")
+        st.error(f"Input blocked by security filter: {e}")
+        st.stop()
+
+    st.session_state.query_timestamps.append(time.time())
+
     with st.spinner("Generating SQL..."):
         try:
-            result = cached_generate_sql(question, schema_text)
+            result = cached_generate_sql(clean_question, schema_text)
             sql = result["sql"]
             explanation = result["explanation"]
         except Exception as e:
@@ -334,11 +375,17 @@ if should_run and question:
         check_sql_is_safe(sql)
         safe_sql = enforce_row_limit(sql, MAX_ROWS)
     except GuardrailViolation as e:
+        log_query(clean_question, sql=sql, blocked=True, blocked_reason=str(e))
         st.error(f"Guardrail blocked this query: {e}")
         st.stop()
 
     try:
         with engine.connect() as conn:
+            if getattr(engine.dialect, "name", "") == "duckdb":
+                try:
+                    conn.execute(text("SET enable_external_access = false;"))
+                except Exception:
+                    pass
             df = pd.read_sql(text(safe_sql), conn)
     except Exception as e:
         st.error(f"Execution failed: {e}")
@@ -362,8 +409,16 @@ if should_run and question:
     with st.spinner("Validating..."):
         schema_ok, unknown_tokens = schema_match_check(sql, known_ids)
         sample = df.head(5).to_string(index=False) if not df.empty else "(no rows)"
-        judge = cached_llm_judge(question, sql, sample)
+        judge = cached_llm_judge(clean_question, sql, sample)
         confidence = compute_confidence(schema_ok, judge["score"])
+
+    log_query(
+        question=clean_question,
+        sql=safe_sql,
+        confidence=confidence,
+        judge_score=judge["score"],
+        row_count=len(df),
+    )
 
     badge_class = {
         "High": "badge-high",
@@ -384,6 +439,6 @@ if should_run and question:
 
 st.divider()
 st.markdown(
-    f'<div class="footer">SELECT-only &middot; {MAX_ROWS}-row limit &middot; schema-validated &middot; LLM-judged</div>',
+    f'<div class="footer">SELECT-only &middot; {MAX_ROWS}-row limit &middot; rate-limited &middot; sandboxed &middot; LLM-judged</div>',
     unsafe_allow_html=True,
 )

@@ -1,6 +1,10 @@
 # text2sql-guardrails
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/)
+
 A natural language to SQL query engine with a **FastAPI backend** and a **Streamlit frontend**. Translates English questions into SQL, enforces execution guardrails, and validates against hallucinations using deterministic schema checks and an LLM judge.
+
+🚀 **Live Interactive Demo:** [https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/](https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/)
 
 ![Dashboard Interface](assets/preview.png)
 

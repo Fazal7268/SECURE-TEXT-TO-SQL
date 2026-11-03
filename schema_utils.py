@@ -1,21 +1,70 @@
 """
 schema_utils.py
-Uses SQLAlchemy's inspection API to extract the database schema into a
-compact JSON-serializable structure. This is what gets injected into the
-LLM prompt on every request instead of raw table contents.
+Extracts database schema into a compact JSON-serializable structure.
+Injected into the LLM prompt on every request instead of raw table contents.
 """
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
+
+
+def _get_duckdb_schema(engine) -> dict:
+    """Extract schema directly using DuckDB's information_schema to avoid
+    SQLAlchemy pg_catalog reflection issues across different environments."""
+    schema = {}
+    with engine.connect() as conn:
+        cols = conn.execute(text("""
+            SELECT table_name, column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_schema = 'main'
+            ORDER BY table_name, ordinal_position
+        """)).fetchall()
+
+        for tbl, c_name, c_type in cols:
+            if tbl not in schema:
+                schema[tbl] = {"columns": [], "foreign_keys": []}
+            schema[tbl]["columns"].append({"name": c_name, "type": str(c_type)})
+
+        try:
+            fks = conn.execute(text("""
+                SELECT table_name, constraint_column_names, 
+                       referenced_table, referenced_column_names
+                FROM duckdb_constraints()
+                WHERE constraint_type = 'FOREIGN KEY'
+            """)).fetchall()
+            for tbl, c_cols, ref_tbl, ref_cols in fks:
+                if tbl in schema:
+                    col_list = list(c_cols) if c_cols else []
+                    ref_list = list(ref_cols) if ref_cols else []
+                    schema[tbl]["foreign_keys"].append({
+                        "column": col_list,
+                        "references": f"{ref_tbl}({ref_list})",
+                    })
+        except Exception:
+            pass
+    return schema
 
 
 def get_schema_dict(engine) -> dict:
     """Return {table_name: {columns: [...], foreign_keys: [...]}}"""
+    # DuckDB has known pg_catalog reflection issues with newer SQLAlchemy versions
+    if getattr(engine.dialect, "name", "") == "duckdb":
+        try:
+            return _get_duckdb_schema(engine)
+        except Exception:
+            pass
+
     inspector = inspect(engine)
     schema = {}
 
     for table_name in inspector.get_table_names():
-        columns = inspector.get_columns(table_name)
-        fks = inspector.get_foreign_keys(table_name)
+        try:
+            columns = inspector.get_columns(table_name)
+        except Exception:
+            columns = []
+        try:
+            fks = inspector.get_foreign_keys(table_name)
+        except Exception:
+            fks = []
 
         schema[table_name] = {
             "columns": [
@@ -23,8 +72,8 @@ def get_schema_dict(engine) -> dict:
             ],
             "foreign_keys": [
                 {
-                    "column": fk["constrained_columns"],
-                    "references": f'{fk["referred_table"]}({fk["referred_columns"]})',
+                    "column": fk.get("constrained_columns", []),
+                    "references": f'{fk.get("referred_table", "")}({fk.get("referred_columns", [])})',
                 }
                 for fk in fks
             ],

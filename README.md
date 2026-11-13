@@ -1,3 +1,13 @@
+---
+title: Secure Text-to-SQL
+emoji: 🛡️
+colorFrom: red
+colorTo: gray
+sdk: streamlit
+app_file: app.py
+pinned: false
+---
+
 # text2sql-guardrails
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/)

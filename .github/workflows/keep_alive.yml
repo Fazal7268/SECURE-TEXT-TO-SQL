@@ -1,0 +1,16 @@
+name: Keep Streamlit App Awake
+
+on:
+  schedule:
+    # Runs every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Streamlit Live App
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L -A "Mozilla/5.0" "https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/")
+          echo "Streamlit ping completed with HTTP status: $STATUS"

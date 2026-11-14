@@ -12,5 +12,9 @@ jobs:
     steps:
       - name: Ping Streamlit Live App
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -L -A "Mozilla/5.0" "https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/")
+          STATUS=$(curl -s -L -c /tmp/cookies.txt -b /tmp/cookies.txt -o /dev/null -w "%{http_code}" -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/")
           echo "Streamlit ping completed with HTTP status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Warning: Expected HTTP 200 but received $STATUS"
+            exit 1
+          fi

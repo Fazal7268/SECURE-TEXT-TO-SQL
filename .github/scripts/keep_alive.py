@@ -6,7 +6,7 @@ and automatically clicks 'Yes, get this app back up!' if hibernated.
 import sys
 from playwright.sync_api import sync_playwright
 
-TARGET_URL = "https://secure-text-to-sql-fdxpnbr6mmpp3xm6gdiabf.streamlit.app/"
+TARGET_URL = "https://fazal-secure-text-to-sql.streamlit.app/"
 
 
 def main():

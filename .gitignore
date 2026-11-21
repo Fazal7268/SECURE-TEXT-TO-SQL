@@ -15,6 +15,8 @@ env/
 # Local Databases and uploaded files
 data/
 temp_dbs/
+test_screenshots/
+*.png
 
 # IDE specific files
 .vscode/
